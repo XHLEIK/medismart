@@ -1,0 +1,945 @@
+import { useState, useEffect, Fragment } from 'react';
+import Calendar from 'react-calendar';
+import { useAuth } from '../../context/AuthContext';
+import { Dialog, Transition } from '@headlessui/react';
+import { UserIcon, MapPinIcon, AcademicCapIcon, ClockIcon, StarIcon, CalendarIcon, MagnifyingGlassIcon, AdjustmentsHorizontalIcon, ArrowPathIcon, XMarkIcon, HeartIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import 'react-calendar/dist/Calendar.css';
+import { useNotifications } from '../../layouts/MainLayout';
+
+// Add custom animation styles
+const fadeIn = "animate-[fadeIn_0.5s_ease-in]";
+const slideIn = "animate-[slideIn_0.3s_ease-out]";
+
+const AppointmentPage = () => {
+  const { user } = useAuth();
+  const { addNotification } = useNotifications();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
+  const [bookingStep, setBookingStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [availableTimes, setAvailableTimes] = useState([]);
+  const [myAppointments, setMyAppointments] = useState([]);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Rescheduling related states
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState(new Date());
+  const [rescheduleTime, setRescheduleTime] = useState(null);
+  const [rescheduleAvailableTimes, setRescheduleAvailableTimes] = useState([]);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+
+  // New state for favorite time slots
+  const [favoriteTimeSlots, setFavoriteTimeSlots] = useState([]);
+  const [rescheduleShowFavorites, setRescheduleShowFavorites] = useState(false);
+  const [bookingShowFavorites, setBookingShowFavorites] = useState(false);
+
+  // Simulated API call to fetch doctors
+  useEffect(() => {
+    // In a real app, this would be an API call
+    setDoctors([
+      {
+        id: 1,
+        name: 'Dr. Sarah Johnson',
+        specialty: 'Cardiology',
+        rating: 4.9,
+        reviews: 120,
+        experience: '15 years',
+        hospital: 'City General Hospital',
+        image: 'https://randomuser.me/api/portraits/women/76.jpg',
+        education: 'MD, Harvard Medical School',
+        available: true,
+      },
+      {
+        id: 2,
+        name: 'Dr. Michael Chen',
+        specialty: 'Dermatology',
+        rating: 4.8,
+        reviews: 95,
+        experience: '10 years',
+        hospital: 'Westside Medical Center',
+        image: 'https://randomuser.me/api/portraits/men/32.jpg',
+        education: 'MD, Stanford University',
+        available: true,
+      },
+      {
+        id: 3,
+        name: 'Dr. Emily Rodriguez',
+        specialty: 'Pediatrics',
+        rating: 4.9,
+        reviews: 135,
+        experience: '12 years',
+        hospital: 'Children\'s Medical Center',
+        image: 'https://randomuser.me/api/portraits/women/43.jpg',
+        education: 'MD, Johns Hopkins University',
+        available: true,
+      },
+      {
+        id: 4,
+        name: 'Dr. James Wilson',
+        specialty: 'Orthopedics',
+        rating: 4.7,
+        reviews: 88,
+        experience: '14 years',
+        hospital: 'Sports Medicine Institute',
+        image: 'https://randomuser.me/api/portraits/men/45.jpg',
+        education: 'MD, University of Pennsylvania',
+        available: true,
+      },
+      {
+        id: 5,
+        name: 'Dr. Aisha Patel',
+        specialty: 'Neurology',
+        rating: 4.8,
+        reviews: 112,
+        experience: '11 years',
+        hospital: 'Neurological Institute',
+        image: 'https://randomuser.me/api/portraits/women/65.jpg',
+        education: 'MD, Yale University',
+        available: true,
+      },
+      // Additional doctors
+      {
+        id: 6,
+        name: 'Dr. Thomas Lee',
+        specialty: 'Ophthalmology',
+        rating: 4.9,
+        reviews: 142,
+        experience: '18 years',
+        hospital: 'Vision Care Center',
+        image: 'https://randomuser.me/api/portraits/men/56.jpg',
+        education: 'MD, Columbia University',
+        available: true,
+      },
+      {
+        id: 7,
+        name: 'Dr. Maria Gonzalez',
+        specialty: 'Endocrinology',
+        rating: 4.7,
+        reviews: 89,
+        experience: '9 years',
+        hospital: 'Diabetes & Hormone Center',
+        image: 'https://randomuser.me/api/portraits/women/33.jpg',
+        education: 'MD, University of Chicago',
+        available: true,
+      },
+      {
+        id: 8,
+        name: 'Dr. Robert Kim',
+        specialty: 'Psychiatry',
+        rating: 4.8,
+        reviews: 106,
+        experience: '13 years',
+        hospital: 'Mental Health Institute',
+        image: 'https://randomuser.me/api/portraits/men/22.jpg',
+        education: 'MD, UCLA Medical School',
+        available: true,
+      },
+      {
+        id: 9,
+        name: 'Dr. Jennifer Smith',
+        specialty: 'Obstetrics & Gynecology',
+        rating: 4.9,
+        reviews: 157,
+        experience: '16 years',
+        hospital: 'Women\'s Health Center',
+        image: 'https://randomuser.me/api/portraits/women/17.jpg',
+        education: 'MD, Duke University',
+        available: true,
+      },
+      {
+        id: 10,
+        name: 'Dr. David Williams',
+        specialty: 'Gastroenterology',
+        rating: 4.6,
+        reviews: 78,
+        experience: '11 years',
+        hospital: 'Digestive Health Institute',
+        image: 'https://randomuser.me/api/portraits/men/67.jpg',
+        education: 'MD, University of Michigan',
+        available: true,
+      }
+    ]);
+
+    // Fetch mock appointment data
+    setMyAppointments([
+      {
+        id: 101,
+        doctorName: 'Dr. Sarah Johnson',
+        doctorSpecialty: 'Cardiology',
+        date: '2024-05-15',
+        time: '10:30 AM',
+        status: 'confirmed',
+        doctorImage: 'https://randomuser.me/api/portraits/women/76.jpg',
+        doctorId: 1,
+      },
+      {
+        id: 102,
+        doctorName: 'Dr. Michael Chen',
+        doctorSpecialty: 'Dermatology',
+        date: '2024-05-22',
+        time: '2:00 PM',
+        status: 'confirmed',
+        doctorImage: 'https://randomuser.me/api/portraits/men/32.jpg',
+        doctorId: 2,
+      }
+    ]);
+  }, []);
+
+  // Generate available times for primary booking flow
+  useEffect(() => {
+    if (selectedDate && selectedDoctor) {
+      // In a real app, this would fetch available slots from the API
+      generateAvailableTimes(setAvailableTimes);
+    }
+  }, [selectedDate, selectedDoctor]);
+  
+  // Generate available times for rescheduling modal
+  useEffect(() => {
+    if (rescheduleDate && appointmentToReschedule) {
+      generateAvailableTimes(setRescheduleAvailableTimes);
+    }
+  }, [rescheduleDate, appointmentToReschedule]);
+  
+  // Function to generate random available time slots
+  const generateAvailableTimes = (setTimesFn) => {
+    const mockTimes = [
+      '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
+      '11:00 AM', '11:30 AM', '02:00 PM', '02:30 PM',
+      '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+    ];
+    
+    // Randomly remove some times to simulate unavailability
+    const availableTimeSlots = mockTimes.filter(() => Math.random() > 0.3);
+    setTimesFn(availableTimeSlots);
+  };
+
+  // Filter doctors based on search and specialty
+  const filteredDoctors = doctors.filter(doctor => {
+    const matchesSearch = doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSpecialty = specialtyFilter === '' || doctor.specialty === specialtyFilter;
+    return matchesSearch && matchesSpecialty;
+  });
+
+  // Get unique specialties for filter
+  const specialties = [...new Set(doctors.map(doctor => doctor.specialty))];
+
+  // Toggle time slot as favorite
+  const toggleFavoriteTimeSlot = (time) => {
+    setFavoriteTimeSlots(prev => 
+      prev.includes(time) 
+        ? prev.filter(t => t !== time) 
+        : [...prev, time]
+    );
+  };
+
+  // Filter time slots to show only favorites if requested
+  const getFilteredTimeSlots = (times, showOnlyFavorites) => {
+    if (!showOnlyFavorites) return times;
+    return times.filter(time => favoriteTimeSlots.includes(time));
+  };
+
+  const handleTimeSelect = (time) => {
+    setSelectedTime(time);
+  };
+  
+  const handleRescheduleTimeSelect = (time) => {
+    setRescheduleTime(time);
+  };
+
+  const handleBookAppointment = () => {
+    setIsLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setIsLoading(false);
+      setBookingConfirmed(true);
+      
+      // Add the new appointment to the list
+      const newAppointment = {
+        id: Math.floor(Math.random() * 1000),
+        doctorName: selectedDoctor.name,
+        doctorSpecialty: selectedDoctor.specialty,
+        date: selectedDate.toISOString().split('T')[0],
+        time: selectedTime,
+        status: 'confirmed',
+        doctorImage: selectedDoctor.image,
+        doctorId: selectedDoctor.id,
+      };
+      
+      setMyAppointments(prev => [...prev, newAppointment]);
+      
+      // Create a notification
+      addNotification({
+        title: 'Appointment Booked',
+        message: `You have successfully booked an appointment with ${selectedDoctor.name} on ${formatDate(selectedDate)} at ${selectedTime}`,
+        type: 'appointment'
+      });
+      
+      // Reset selections
+      setSelectedDoctor(null);
+      setSelectedDate(new Date());
+      setSelectedTime(null);
+      setBookingStep(1);
+    }, 1500);
+  };
+
+  const handleNewAppointment = () => {
+    setBookingConfirmed(false);
+  };
+  
+  // Open reschedule modal
+  const openRescheduleModal = (appointment) => {
+    setAppointmentToReschedule(appointment);
+    setRescheduleDate(new Date(appointment.date));
+    setRescheduleTime(null);
+    setIsRescheduleModalOpen(true);
+  };
+  
+  // Submit reschedule
+  const handleRescheduleSubmit = () => {
+    if (!rescheduleTime) return;
+    
+    setIsRescheduling(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      // Update appointment
+      setMyAppointments(prev => 
+        prev.map(apt => 
+          apt.id === appointmentToReschedule.id 
+            ? {
+                ...apt,
+                date: rescheduleDate.toISOString().split('T')[0],
+                time: rescheduleTime,
+                status: 'confirmed'
+              }
+            : apt
+        )
+      );
+      
+      // Create notification
+      addNotification({
+        title: 'Appointment Rescheduled',
+        message: `Your appointment with ${appointmentToReschedule.doctorName} has been rescheduled to ${formatDate(rescheduleDate)} at ${rescheduleTime}`,
+        type: 'appointment'
+      });
+      
+      // Close modal and reset states
+      setIsRescheduling(false);
+      setIsRescheduleModalOpen(false);
+      setAppointmentToReschedule(null);
+      setRescheduleDate(new Date());
+      setRescheduleTime(null);
+    }, 1500);
+  };
+
+  // Format date for display
+  const formatDate = (date) => {
+    if (!date) return '';
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  // Format appointment date 
+  const formatAppointmentDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Cancel appointment functionality
+  const cancelAppointment = (id) => {
+    if (confirm('Are you sure you want to cancel this appointment?')) {
+      setMyAppointments(prev => 
+        prev.map(appointment => 
+          appointment.id === id ? { ...appointment, status: 'cancelled' } : appointment
+        )
+      );
+      
+      const appointment = myAppointments.find(a => a.id === id);
+      if (appointment) {
+        addNotification({
+          title: 'Appointment Cancelled',
+          message: `Your appointment with ${appointment.doctorName} on ${formatAppointmentDate(appointment.date)} has been cancelled`,
+          type: 'appointment'
+        });
+      }
+    }
+  };
+
+  // Add animation to calendar selection
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    if (bookingStep === 1 && selectedDoctor) {
+      setBookingStep(2);
+    }
+  };
+  
+  // Doctor selection with animation
+  const selectDoctor = (doctor) => {
+    setSelectedDoctor(doctor);
+    setBookingStep(2);
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div className="bg-gradient-to-r from-primary to-[#06b6d4] text-white rounded-xl shadow-lg p-6 animate-fadeIn">
+        <h1 className="text-2xl font-bold mb-2 text-shadow">Appointments</h1>
+        <p className="text-blue-50">Schedule and manage your appointments with top specialists</p>
+      </div>
+
+      {/* Booking confirmation */}
+      {bookingConfirmed && (
+        <div className={`card p-6 bg-green-50 border border-green-200 rounded-xl shadow-md animate-slideIn`}>
+          <div className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Appointment Confirmed!</h2>
+            <p className="text-gray-600 mb-4">Your appointment has been successfully scheduled.</p>
+            <button
+              onClick={handleNewAppointment}
+              className="btn-gradient transition-all hover-scale"
+            >
+              Book Another Appointment
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!bookingConfirmed && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Doctor Selection - Step 1 */}
+          <div className={`lg:col-span-2 space-y-6 ${bookingStep > 1 && selectedDoctor ? 'lg:col-span-1' : ''} animate-fadeIn`} style={{ animationDelay: '100ms' }}>
+            {/* Search and Filter */}
+            <div className="card-hover p-6 shadow-md rounded-xl border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900 gradient-text">Find a Doctor</h2>
+                <button 
+                  className="icon-container"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <AdjustmentsHorizontalIcon className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search by doctor name or specialty..."
+                  className="input-field-animated pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              {showFilters && (
+                <div className={`mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100 animate-slideIn`}>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Filter by Specialty</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className={`px-3 py-1 text-xs rounded-full transition-colors hover-scale ${
+                        specialtyFilter === '' 
+                          ? 'bg-gradient-to-r from-primary to-secondary text-white' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setSpecialtyFilter('')}
+                    >
+                      All
+                    </button>
+                    {specialties.map((specialty, index) => (
+                      <button
+                        key={specialty}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors hover-scale ${
+                          specialtyFilter === specialty 
+                            ? 'bg-gradient-to-r from-primary to-secondary text-white' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        onClick={() => setSpecialtyFilter(specialty)}
+                        style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                      >
+                        {specialty}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Doctors List */}
+            <div className="card-hover p-6 shadow-md rounded-xl border border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">{filteredDoctors.length} Doctors Available</h2>
+              
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                {filteredDoctors.map((doctor, index) => (
+                  <div 
+                    key={doctor.id}
+                    className={`border border-gray-100 rounded-xl p-4 transition-all duration-300 hover-lift animate-slideIn ${
+                      selectedDoctor?.id === doctor.id 
+                        ? 'bg-primary/5 border-primary shadow-md' 
+                        : 'hover:bg-gray-50 hover:shadow-md cursor-pointer'
+                    }`}
+                    onClick={() => selectDoctor(doctor)}
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-start">
+                      <div className="h-16 w-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary shadow-blue">
+                        <img 
+                          src={doctor.image} 
+                          alt={doctor.name} 
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <div className="flex justify-between">
+                          <div>
+                            <h3 className="text-base font-semibold text-gray-900">{doctor.name}</h3>
+                            <p className="text-sm gradient-text">{doctor.specialty}</p>
+                          </div>
+                          <div className="flex items-center">
+                            <StarIcon className="h-4 w-4 text-yellow-400" />
+                            <span className="ml-1 text-sm font-medium text-gray-900">{doctor.rating}</span>
+                            <span className="ml-1 text-xs text-gray-500">({doctor.reviews})</span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="flex items-center text-xs text-gray-500">
+                            <AcademicCapIcon className="h-3 w-3 text-gray-400 mr-1" />
+                            <span>{doctor.education}</span>
+                          </div>
+                          <div className="flex items-center text-xs text-gray-500">
+                            <UserIcon className="h-3 w-3 text-gray-400 mr-1" />
+                            <span>{doctor.experience} exp.</span>
+                          </div>
+                          <div className="flex items-center text-xs text-gray-500 col-span-2">
+                            <MapPinIcon className="h-3 w-3 text-gray-400 mr-1" />
+                            <span>{doctor.hospital}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {filteredDoctors.length === 0 && (
+                  <div className="text-center py-8 animate-fadeIn">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-gray-500">No doctors match your search criteria.</p>
+                    <button 
+                      onClick={() => {setSearchTerm(''); setSpecialtyFilter('');}}
+                      className="mt-2 text-primary hover:underline flex items-center justify-center mx-auto hover-scale"
+                    >
+                      <ArrowPathIcon className="h-4 w-4 mr-1" />
+                      Reset filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Calendar and Time Selection - Step 2 & 3 */}
+          {bookingStep >= 2 && selectedDoctor && (
+            <div className="card-hover p-6 shadow-md rounded-xl border border-gray-100 animate-slideInRight">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 gradient-text">Select Date & Time</h2>
+              
+              {/* Selected Doctor */}
+              <div className="flex items-center mb-4 p-3 bg-blue-50 rounded-lg hover-lift">
+                <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 shadow-blue">
+                  <img 
+                    src={selectedDoctor.image} 
+                    alt={selectedDoctor.name} 
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">{selectedDoctor.name}</p>
+                  <p className="text-xs gradient-text">{selectedDoctor.specialty}</p>
+                </div>
+              </div>
+              
+              {/* Calendar */}
+              <div className="mb-6 animate-fadeIn">
+                <Calendar 
+                  onChange={handleDateChange}
+                  value={selectedDate}
+                  minDate={new Date()}
+                  className="custom-calendar"
+                />
+              </div>
+              
+              {/* Time Slots */}
+              <div className="animate-fadeIn" style={{ animationDelay: '300ms' }}>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-medium text-gray-700">Available Time Slots for {formatDate(selectedDate)}</h3>
+                  <button 
+                    onClick={() => setBookingShowFavorites(!bookingShowFavorites)} 
+                    className="text-xs flex items-center text-primary hover:text-primary/80 hover-scale"
+                  >
+                    {bookingShowFavorites ? 'Show All' : 'Show Favorites'}
+                    {bookingShowFavorites ? (
+                      <HeartIconSolid className="h-3 w-3 ml-1 text-red-500 animate-heartbeat" />
+                    ) : (
+                      <HeartIcon className="h-3 w-3 ml-1" />
+                    )}
+                  </button>
+                </div>
+                
+                {getFilteredTimeSlots(availableTimes, bookingShowFavorites).length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {getFilteredTimeSlots(availableTimes, bookingShowFavorites).map((time, index) => (
+                      <div 
+                        key={time}
+                        className={`relative p-2 text-xs rounded-lg transition-all border hover-lift animate-fadeIn ${
+                          selectedTime === time 
+                            ? 'bg-gradient-to-r from-primary to-secondary text-white border-primary shadow-blue' 
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-primary hover:text-primary'
+                        }`}
+                        style={{ animationDelay: `${index * 30}ms` }}
+                      >
+                        <button
+                          className="w-full h-full flex justify-center items-center"
+                          onClick={() => handleTimeSelect(time)}
+                        >
+                          {time}
+                        </button>
+                        <button 
+                          className="absolute top-0.5 right-0.5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteTimeSlot(time);
+                          }}
+                        >
+                          {favoriteTimeSlots.includes(time) ? (
+                            <HeartIconSolid className="h-3 w-3 text-red-500 animate-heartbeat" />
+                          ) : (
+                            <HeartIcon className="h-3 w-3 text-gray-400 hover:text-red-500" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-gray-500 py-4">
+                    {bookingShowFavorites ? 'No favorite time slots available for this day.' : 'No available time slots for this day.'}
+                  </p>
+                )}
+              </div>
+              
+              {/* Booking Button */}
+              <div className="mt-6 animate-fadeIn" style={{ animationDelay: '400ms' }}>
+                <button
+                  onClick={handleBookAppointment}
+                  disabled={!selectedTime || isLoading}
+                  className={`w-full py-2 rounded-lg font-medium transition-all ${
+                    selectedTime && !isLoading
+                      ? 'btn-gradient hover-glow' 
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    `Book Appointment ${selectedTime ? `for ${selectedTime}` : ''}`
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* My Appointments */}
+      <div className="card-hover p-6 shadow-md rounded-xl border border-gray-100 animate-fadeIn" style={{ animationDelay: '400ms' }}>
+        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+          <CalendarIcon className="h-5 w-5 mr-2 text-primary" />
+          My Appointments
+        </h2>
+        
+        {myAppointments.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {myAppointments.map((appointment, index) => (
+              <div 
+                key={appointment.id} 
+                className="py-4 hover:bg-gray-50 rounded-lg transition-all animate-slideIn"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between p-2">
+                  <div className="flex items-start">
+                    <div className="h-12 w-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary shadow-blue">
+                      <img 
+                        src={appointment.doctorImage} 
+                        alt={appointment.doctorName}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="ml-4">
+                      <p className="font-medium text-gray-900">{appointment.doctorName}</p>
+                      <p className="text-sm gradient-text">{appointment.doctorSpecialty}</p>
+                      <div className="flex items-center mt-1">
+                        <CalendarIcon className="h-4 w-4 text-primary mr-1" />
+                        <span className="text-sm text-gray-600">{formatAppointmentDate(appointment.date)}</span>
+                        <ClockIcon className="h-4 w-4 text-primary ml-3 mr-1" />
+                        <span className="text-sm text-gray-600">{appointment.time}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 md:mt-0 flex flex-col items-end">
+                    <div className="mb-2">
+                      {appointment.status === 'confirmed' && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                          Confirmed
+                        </span>
+                      )}
+                      {appointment.status === 'pending' && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                          Pending
+                        </span>
+                      )}
+                      {appointment.status === 'cancelled' && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
+                          Cancelled
+                        </span>
+                      )}
+                    </div>
+                    
+                    {appointment.status !== 'cancelled' && (
+                      <div className="flex space-x-2">
+                        <button 
+                          className="px-3 py-1 text-xs text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors hover-scale"
+                          onClick={() => openRescheduleModal(appointment)}
+                        >
+                          Reschedule
+                        </button>
+                        <button 
+                          className="px-3 py-1 text-xs text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors hover-scale"
+                          onClick={() => cancelAppointment(appointment.id)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center animate-fadeIn">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-primary mb-4 animate-pulse-slow">
+              <CalendarIcon className="h-8 w-8" />
+            </div>
+            <p className="text-gray-500">No appointments scheduled yet.</p>
+            <p className="text-sm text-gray-400 mt-1">Your upcoming appointments will appear here.</p>
+          </div>
+        )}
+      </div>
+      
+      {/* Reschedule Modal */}
+      <Transition show={isRescheduleModalOpen} as={Fragment}>
+        <Dialog
+          as="div"
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClose={() => !isRescheduling && setIsRescheduleModalOpen(false)}
+        >
+          <div className="min-h-screen px-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
+            </Transition.Child>
+
+            {/* This element is to trick the browser into centering the modal contents. */}
+            <span
+              className="inline-block h-screen align-middle"
+              aria-hidden="true"
+            >
+              &#8203;
+            </span>
+            
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl glass-effect">
+                <Dialog.Title 
+                  as="h3" 
+                  className="text-lg font-medium leading-6 text-gray-900 flex justify-between items-center"
+                >
+                  <span className="gradient-text">Reschedule Appointment</span>
+                  <button 
+                    onClick={() => !isRescheduling && setIsRescheduleModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-500 hover-scale"
+                    disabled={isRescheduling}
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </Dialog.Title>
+                
+                {appointmentToReschedule && (
+                  <div className="mt-4">
+                    <div className="bg-blue-50 p-3 rounded-lg mb-4 hover-lift">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary shadow-blue">
+                          <img 
+                            src={appointmentToReschedule.doctorImage} 
+                            alt={appointmentToReschedule.doctorName}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">{appointmentToReschedule.doctorName}</p>
+                          <p className="text-xs gradient-text">{appointmentToReschedule.doctorSpecialty}</p>
+                          <p className="text-xs text-primary mt-1">
+                            Current appointment: {formatAppointmentDate(appointmentToReschedule.date)} at {appointmentToReschedule.time}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  
+                    <div className="mb-4 animate-fadeIn">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Select New Date</h4>
+                      <Calendar 
+                        onChange={setRescheduleDate}
+                        value={rescheduleDate}
+                        minDate={new Date()}
+                        className="custom-calendar w-full"
+                      />
+                    </div>
+                    
+                    <div className="mb-4 animate-fadeIn" style={{ animationDelay: '200ms' }}>
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          Available Time Slots for {formatDate(rescheduleDate)}
+                        </h4>
+                        <button 
+                          onClick={() => setRescheduleShowFavorites(!rescheduleShowFavorites)} 
+                          className="text-xs flex items-center text-primary hover:text-primary/80 hover-scale"
+                        >
+                          {rescheduleShowFavorites ? 'Show All' : 'Show Favorites'}
+                          {rescheduleShowFavorites ? (
+                            <HeartIconSolid className="h-3 w-3 ml-1 text-red-500 animate-heartbeat" />
+                          ) : (
+                            <HeartIcon className="h-3 w-3 ml-1" />
+                          )}
+                        </button>
+                      </div>
+                      
+                      {getFilteredTimeSlots(rescheduleAvailableTimes, rescheduleShowFavorites).length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          {getFilteredTimeSlots(rescheduleAvailableTimes, rescheduleShowFavorites).map((time, index) => (
+                            <div
+                              key={time}
+                              className={`relative p-2 text-xs rounded-lg transition-all border hover-lift animate-fadeIn ${
+                                rescheduleTime === time 
+                                  ? 'bg-gradient-to-r from-primary to-secondary text-white border-primary shadow-blue' 
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-primary hover:text-primary'
+                              }`}
+                              style={{ animationDelay: `${index * 30}ms` }}
+                            >
+                              <button
+                                className="w-full h-full flex justify-center items-center"
+                                onClick={() => handleRescheduleTimeSelect(time)}
+                              >
+                                {time}
+                              </button>
+                              <button 
+                                className="absolute top-0.5 right-0.5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavoriteTimeSlot(time);
+                                }}
+                              >
+                                {favoriteTimeSlots.includes(time) ? (
+                                  <HeartIconSolid className="h-3 w-3 text-red-500 animate-heartbeat" />
+                                ) : (
+                                  <HeartIcon className="h-3 w-3 text-gray-400 hover:text-red-500" />
+                                )}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center text-sm text-gray-500 py-4">
+                          {rescheduleShowFavorites ? 'No favorite time slots available for this day.' : 'No available time slots for this day.'}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="mt-6 flex justify-end space-x-3 animate-fadeIn" style={{ animationDelay: '300ms' }}>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 hover-scale"
+                        onClick={() => !isRescheduling && setIsRescheduleModalOpen(false)}
+                        disabled={isRescheduling}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 ${
+                          rescheduleTime && !isRescheduling
+                            ? 'btn-gradient hover-glow'
+                            : 'bg-gray-300 cursor-not-allowed'
+                        }`}
+                        onClick={handleRescheduleSubmit}
+                        disabled={!rescheduleTime || isRescheduling}
+                      >
+                        {isRescheduling ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                          </span>
+                        ) : (
+                          'Confirm Reschedule'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Transition.Child>
+          </div>
+        </Dialog>
+      </Transition>
+    </div>
+  );
+};
+
+export default AppointmentPage; 
