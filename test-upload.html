@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test File Upload</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      min-height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Test File Upload</h1>
+  
+  <div class="form-group">
+    <label for="fileInput">Select Image:</label>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+  
+  <button id="uploadBtn">Upload File</button>
+  
+  <div id="result">
+    <p>Results will appear here...</p>
+  </div>
+
+  <script>
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+      const fileInput = document.getElementById('fileInput');
+      const resultDiv = document.getElementById('result');
+      
+      if (!fileInput.files || fileInput.files.length === 0) {
+        resultDiv.innerHTML = '<p style="color: red;">Please select a file first</p>';
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      resultDiv.innerHTML = `<p>Uploading ${file.name} (${file.size} bytes)...</p>`;
+      
+      try {
+        // Create FormData
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        // Log FormData for debugging
+        console.log('FormData created with file:', file.name);
+        
+        // Make the request to the test endpoint
+        const response = await fetch('http://localhost:5000/api/test-upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `
+            <p style="color: green;">Upload successful!</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <p style="color: red;">Upload failed</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        resultDiv.innerHTML = `
+          <p style="color: red;">Error: ${error.message}</p>
+        `;
+      }
+    });
+  </script>
+</body>
+</html>

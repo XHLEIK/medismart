@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import userApi from '../../api/userApi';
 import { 
   UserIcon, 
   KeyIcon, 
@@ -23,95 +24,288 @@ const ProfilePage = () => {
   const [profileImage, setProfileImage] = useState(user?.profilePic || null);
   const [imageFile, setImageFile] = useState(null);
   const [imageError, setImageError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState('');
   const fileInputRef = useRef(null);
   
-  // Form state
+  // Form state with default values
   const [formData, setFormData] = useState({
     name: user?.name || 'Guest User',
     email: user?.email || 'guest@example.com',
-    phone: '+1 555-123-4567',
-    dob: '1990-01-01',
+    phone: '',
+    dob: '',
     gender: 'Male',
-    address: '123 Healthcare St, Medical City, MC 12345',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: ''
+    },
     bloodType: 'O+',
-    allergies: 'None',
-    chronicConditions: 'None',
-    emergencyContact: 'Jane Doe (+1 555-987-6543)',
+    allergies: '',
+    chronicConditions: '',
+    emergencyContact: {
+      name: '',
+      relationship: '',
+      phoneNumber: ''
+    },
     preferredLanguage: 'English',
-    insuranceProvider: 'MediCare Plus',
-    insuranceNumber: 'MP-12345678'
+    insuranceProvider: '',
+    insuranceNumber: ''
   });
+  
+  // Fetch user data from MongoDB when component mounts
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user || !user.id) return;
+      
+      setIsLoading(true);
+      try {
+        const userData = await userApi.getUserById(user.id);
+        
+        if (userData) {
+          // Set profile image if available from Cloudinary
+          if (userData.profileImage && userData.profileImage.url) {
+            setProfileImage(userData.profileImage.url);
+          }
+          
+          // Update form data with fetched user data
+          setFormData({
+            name: userData.personalInfo?.firstName && userData.personalInfo?.lastName
+              ? `${userData.personalInfo.firstName} ${userData.personalInfo.lastName}`
+              : user?.name || 'Guest User',
+            email: userData.email || user?.email || 'guest@example.com',
+            phone: userData.personalInfo?.phoneNumber || '',
+            dob: userData.personalInfo?.dateOfBirth ? new Date(userData.personalInfo.dateOfBirth).toISOString().split('T')[0] : '',
+            gender: userData.personalInfo?.gender || 'Male',
+            address: userData.personalInfo?.address || {
+              street: '',
+              city: '',
+              state: '',
+              zipCode: '',
+              country: ''
+            },
+            bloodType: userData.medicalInfo?.bloodType || 'O+',
+            allergies: userData.medicalInfo?.allergies ? userData.medicalInfo.allergies.join(', ') : '',
+            chronicConditions: userData.medicalInfo?.chronicConditions ? userData.medicalInfo.chronicConditions.join(', ') : '',
+            emergencyContact: userData.personalInfo?.emergencyContact || {
+              name: '',
+              relationship: '',
+              phoneNumber: ''
+            },
+            preferredLanguage: userData.personalInfo?.preferredLanguage || 'English',
+            insuranceProvider: userData.medicalInfo?.insuranceProvider || '',
+            insuranceNumber: userData.medicalInfo?.insuranceNumber || ''
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchUserData();
+  }, [user]);
   
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-
+  
   const handleImageClick = () => {
     fileInputRef.current.click();
   };
-
-  const handleImageChange = (e) => {
+  
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+    
+    console.log('File selected:', file.name, 'Type:', file.type, 'Size:', file.size);
     
     // Validate file type
     if (!file.type.match('image.*')) {
+      console.log('Invalid file type:', file.type);
       setImageError('Please select an image file (PNG, JPG, JPEG)');
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
+      console.log('File too large:', file.size);
       setImageError('Image size should be less than 5MB');
       return;
     }
     
     setImageError('');
     setImageFile(file);
+    setSaveSuccess('');
+    setSaveError('');
     
-    // Create a preview
+    // Create a preview immediately for better UX
     const reader = new FileReader();
     reader.onload = () => {
       setProfileImage(reader.result);
     };
     reader.readAsDataURL(file);
+    
+    // Automatically upload the image to Cloudinary
+    if (user && user.id) {
+      try {
+        // Show loading state
+        setIsLoading(true);
+        console.log('Starting image upload for user:', user.id);
+        
+        // Upload the image to Cloudinary via our API
+        const updatedUser = await userApi.uploadProfileImage(user.id, file);
+        
+        // Update profile image with the Cloudinary URL
+        if (updatedUser && updatedUser.profileImage && updatedUser.profileImage.url) {
+          console.log('Image uploaded successfully:', updatedUser.profileImage.url);
+          
+          // Update the profile image with the Cloudinary URL
+          setProfileImage(updatedUser.profileImage.url);
+          
+          // Show success message
+          setSaveSuccess('Profile image updated successfully!');
+          
+          // Auto-hide success message after 3 seconds
+          setTimeout(() => {
+            setSaveSuccess('');
+          }, 3000);
+        } else {
+          console.error('Upload response missing image URL:', updatedUser);
+          setImageError('Server response incomplete. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        setImageError('Failed to upload image. Please try again.');
+        
+        // Revert to previous image if upload fails
+        if (user.profileImage) {
+          setProfileImage(user.profileImage);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      console.error('User not authenticated');
+      setImageError('You must be logged in to upload an image.');
+    }
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // In a real app, this would call an API to update the user profile
-    // and upload the image file to a server
+    setSaveError('');
+    setSaveSuccess('');
     
-    // Here we'd typically have code like:
-    // if (imageFile) {
-    //   const formData = new FormData();
-    //   formData.append('profileImage', imageFile);
-    //   await uploadProfileImage(formData);
-    // }
+    if (!user || !user.id) {
+      setSaveError('User not authenticated. Please log in again.');
+      return;
+    }
     
-    setIsEditing(false);
-    // Show success message or notification
+    try {
+      // Parse name into first and last name
+      const nameParts = formData.name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      // Parse allergies and chronic conditions into arrays
+      const allergiesArray = formData.allergies
+        ? formData.allergies.split(',').map(item => item.trim())
+        : [];
+      
+      const chronicConditionsArray = formData.chronicConditions
+        ? formData.chronicConditions.split(',').map(item => item.trim())
+        : [];
+      
+      // Prepare user data for MongoDB
+      const userData = {
+        supabaseId: user.id,
+        email: user.email,
+        personalInfo: {
+          firstName,
+          lastName,
+          phoneNumber: formData.phone,
+          dateOfBirth: formData.dob ? new Date(formData.dob) : null,
+          gender: formData.gender,
+          address: formData.address,
+          emergencyContact: formData.emergencyContact,
+          preferredLanguage: formData.preferredLanguage
+        },
+        medicalInfo: {
+          bloodType: formData.bloodType,
+          allergies: allergiesArray,
+          chronicConditions: chronicConditionsArray,
+          insuranceProvider: formData.insuranceProvider,
+          insuranceNumber: formData.insuranceNumber
+        }
+      };
+      
+      // Save user data to MongoDB
+      await userApi.createOrUpdateUser(userData);
+      
+      // Profile image is now uploaded automatically when selected
+      // No need to handle it here anymore
+      
+      setSaveSuccess('Profile updated successfully!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setSaveError('Failed to update profile. Please try again.');
+    }
   };
   
-  const cancelEdit = () => {
-    // Reset form data to original values
-    setFormData({
-      name: user?.name || 'Guest User',
-      email: user?.email || 'guest@example.com',
-      phone: '+1 555-123-4567',
-      dob: '1990-01-01',
-      gender: 'Male',
-      address: '123 Healthcare St, Medical City, MC 12345',
-      bloodType: 'O+',
-      allergies: 'None',
-      chronicConditions: 'None',
-      emergencyContact: 'Jane Doe (+1 555-987-6543)',
-      preferredLanguage: 'English',
-      insuranceProvider: 'MediCare Plus',
-      insuranceNumber: 'MP-12345678'
-    });
+  const cancelEdit = async () => {
+    setSaveError('');
+    setSaveSuccess('');
+    
+    // Fetch the latest user data from the server
+    if (user && user.id) {
+      try {
+        const userData = await userApi.getUserById(user.id);
+        
+        if (userData) {
+          // Reset form data to server values
+          setFormData({
+            name: userData.personalInfo?.firstName && userData.personalInfo?.lastName
+              ? `${userData.personalInfo.firstName} ${userData.personalInfo.lastName}`
+              : user?.name || 'Guest User',
+            email: userData.email || user?.email || 'guest@example.com',
+            phone: userData.personalInfo?.phoneNumber || '',
+            dob: userData.personalInfo?.dateOfBirth ? new Date(userData.personalInfo.dateOfBirth).toISOString().split('T')[0] : '',
+            gender: userData.personalInfo?.gender || 'Male',
+            address: userData.personalInfo?.address || {
+              street: '',
+              city: '',
+              state: '',
+              zipCode: '',
+              country: ''
+            },
+            bloodType: userData.medicalInfo?.bloodType || 'O+',
+            allergies: userData.medicalInfo?.allergies ? userData.medicalInfo.allergies.join(', ') : '',
+            chronicConditions: userData.medicalInfo?.chronicConditions ? userData.medicalInfo.chronicConditions.join(', ') : '',
+            emergencyContact: userData.personalInfo?.emergencyContact || {
+              name: '',
+              relationship: '',
+              phoneNumber: ''
+            },
+            preferredLanguage: userData.personalInfo?.preferredLanguage || 'English',
+            insuranceProvider: userData.medicalInfo?.insuranceProvider || '',
+            insuranceNumber: userData.medicalInfo?.insuranceNumber || ''
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    }
+    
     // Reset image if it was changed and not saved
     setProfileImage(user?.profilePic || null);
     setImageFile(null);
@@ -154,6 +348,24 @@ const ProfilePage = () => {
                   </div>
                 )}
               </div>
+              
+              {saveError && (
+                <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 text-sm rounded">
+                  {saveError}
+                </div>
+              )}
+              
+              {saveSuccess && (
+                <div className="mb-4 p-2 bg-green-100 border border-green-400 text-green-700 text-sm rounded">
+                  {saveSuccess}
+                </div>
+              )}
+              
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              ) : null}
               
               <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -258,17 +470,94 @@ const ProfilePage = () => {
                   </div>
                   
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
                     {isEditing ? (
                       <input 
                         type="text" 
-                        name="address" 
-                        value={formData.address}
-                        onChange={handleChange}
+                        name="address.street" 
+                        value={formData.address.street}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            address: {
+                              ...formData.address,
+                              street: e.target.value
+                            }
+                          });
+                        }}
                         className="input-field w-full"
                       />
                     ) : (
-                      <p className="text-gray-800">{formData.address}</p>
+                      <p className="text-gray-800">{formData.address.street}</p>
+                    )}
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    {isEditing ? (
+                      <input 
+                        type="text" 
+                        name="address.city" 
+                        value={formData.address.city}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            address: {
+                              ...formData.address,
+                              city: e.target.value
+                            }
+                          });
+                        }}
+                        className="input-field w-full"
+                      />
+                    ) : (
+                      <p className="text-gray-800">{formData.address.city}</p>
+                    )}
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">State/Province</label>
+                    {isEditing ? (
+                      <input 
+                        type="text" 
+                        name="address.state" 
+                        value={formData.address.state}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            address: {
+                              ...formData.address,
+                              state: e.target.value
+                            }
+                          });
+                        }}
+                        className="input-field w-full"
+                      />
+                    ) : (
+                      <p className="text-gray-800">{formData.address.state}</p>
+                    )}
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Zip/Postal Code</label>
+                    {isEditing ? (
+                      <input 
+                        type="text" 
+                        name="address.zipCode" 
+                        value={formData.address.zipCode}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            address: {
+                              ...formData.address,
+                              zipCode: e.target.value
+                            }
+                          });
+                        }}
+                        className="input-field w-full"
+                      />
+                    ) : (
+                      <p className="text-gray-800">{formData.address.zipCode}</p>
                     )}
                   </div>
                 </div>
@@ -303,17 +592,71 @@ const ProfilePage = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
                   {isEditing ? (
                     <input 
                       type="text" 
-                      name="emergencyContact" 
-                      value={formData.emergencyContact}
-                      onChange={handleChange}
+                      name="emergencyContact.name" 
+                      value={formData.emergencyContact.name}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          emergencyContact: {
+                            ...formData.emergencyContact,
+                            name: e.target.value
+                          }
+                        });
+                      }}
                       className="input-field w-full"
                     />
                   ) : (
-                    <p className="text-gray-800">{formData.emergencyContact}</p>
+                    <p className="text-gray-800">{formData.emergencyContact.name}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Relationship</label>
+                  {isEditing ? (
+                    <input 
+                      type="text" 
+                      name="emergencyContact.relationship" 
+                      value={formData.emergencyContact.relationship}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          emergencyContact: {
+                            ...formData.emergencyContact,
+                            relationship: e.target.value
+                          }
+                        });
+                      }}
+                      className="input-field w-full"
+                    />
+                  ) : (
+                    <p className="text-gray-800">{formData.emergencyContact.relationship}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Phone</label>
+                  {isEditing ? (
+                    <input 
+                      type="text" 
+                      name="emergencyContact.phoneNumber" 
+                      value={formData.emergencyContact.phoneNumber}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          emergencyContact: {
+                            ...formData.emergencyContact,
+                            phoneNumber: e.target.value
+                          }
+                        });
+                      }}
+                      className="input-field w-full"
+                    />
+                  ) : (
+                    <p className="text-gray-800">{formData.emergencyContact.phoneNumber}</p>
                   )}
                 </div>
                 

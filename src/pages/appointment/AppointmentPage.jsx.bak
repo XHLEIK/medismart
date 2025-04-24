@@ -44,67 +44,31 @@ const AppointmentPage = () => {
   // Fetch user's appointments from MongoDB
   useEffect(() => {
     const fetchUserAppointments = async () => {
-      if (!user) {
-        console.log('No user available for fetching appointments');
-        return;
-      }
-      
-      // Log the entire user object to debug
-      console.log('Current user object:', user);
-      
-      // Supabase stores the UUID in the 'id' property
-      const userId = user.id;
-      
-      if (!userId) {
-        console.log('No user ID available for fetching appointments');
-        return;
-      }
-      
-      console.log('Attempting to fetch appointments for user ID:', userId);
-      
-      try {
-        setIsLoading(true);
-        const appointments = await appointmentApi.getUserAppointments(userId);
-        console.log('Appointments received from API:', appointments);
-        
-        if (!appointments || appointments.length === 0) {
-          console.log('No appointments found for user');
-          setMyAppointments([]);
-          return;
-        }
-        
-        // Transform the appointments data to match the expected format
-        const formattedAppointments = appointments.map(appointment => {
-          console.log('Processing appointment:', appointment);
-          return {
+      if (user && user.id) {
+        try {
+          const appointments = await appointmentApi.getUserAppointments(user.id);
+          setMyAppointments(appointments.map(appointment => ({
             id: appointment._id,
-            doctorId: appointment.doctorId,
             doctorName: appointment.doctorName,
             doctorSpecialty: appointment.doctorSpecialty,
-            doctorImage: appointment.doctorImage,
             date: appointment.appointmentDate,
             time: appointment.appointmentTime,
             status: appointment.status,
-            notes: appointment.notes
-          };
-        });
-        
-        console.log('Formatted appointments:', formattedAppointments);
-        setMyAppointments(formattedAppointments);
-      } catch (error) {
-        console.error('Failed to fetch appointments:', error);
-        addNotification('Failed to load your appointments', 'error');
-      } finally {
-        setIsLoading(false);
+            doctorId: appointment.doctorId,
+            reason: appointment.reason
+          })));
+        } catch (error) {
+          console.error('Error fetching appointments:', error);
+        }
       }
     };
     
     fetchUserAppointments();
-  }, [user, bookingConfirmed]);
-
-  // Fetch doctors data
+  }, [user]);
+  
+  // Fetch doctors
   useEffect(() => {
-    // This could be replaced with a real API call to fetch doctors from a database
+    // In a real app, this would fetch from an API
     setDoctors([
       {
         id: 1,
@@ -228,6 +192,30 @@ const AppointmentPage = () => {
         available: true,
       }
     ]);
+
+    // Fetch mock appointment data
+    // setMyAppointments([
+    //   {
+    //     id: 101,
+    //     doctorName: 'Dr. Sarah Johnson',
+    //     doctorSpecialty: 'Cardiology',
+    //     date: '2024-05-15',
+    //     time: '10:30 AM',
+    //     status: 'confirmed',
+    //     doctorImage: 'https://randomuser.me/api/portraits/women/76.jpg',
+    //     doctorId: 1,
+    //   },
+    //   {
+    //     id: 102,
+    //     doctorName: 'Dr. Michael Chen',
+    //     doctorSpecialty: 'Dermatology',
+    //     date: '2024-05-22',
+    //     time: '2:00 PM',
+    //     status: 'confirmed',
+    //     doctorImage: 'https://randomuser.me/api/portraits/men/32.jpg',
+    //     doctorId: 2,
+    //   }
+    // ]);
   }, []);
 
   // Generate available times for primary booking flow
@@ -293,26 +281,12 @@ const AppointmentPage = () => {
   };
 
   const handleBookAppointment = async () => {
-    console.log('handleBookAppointment called with:', { 
-      selectedDoctor, 
-      selectedTime, 
-      selectedDate,
-      user: user ? { id: user.id } : 'No user'
-    });
-    
-    if (!selectedDoctor || !selectedTime || !user) {
-      console.error('Missing required data for booking appointment');
-      return;
-    }
-    
-    // Log the entire user object to debug
-    console.log('Current user object in booking:', user);
-    
-    // Supabase stores the UUID in the 'id' property
-    const userId = user.id;
-    
-    if (!userId) {
-      console.error('No user ID available for booking appointment');
+    if (!user || !user.id) {
+      addNotification({
+        title: 'Authentication Required',
+        message: 'Please log in to book an appointment',
+        type: 'error'
+      });
       return;
     }
     
@@ -321,90 +295,56 @@ const AppointmentPage = () => {
     try {
       // Create appointment data
       const appointmentData = {
-        userId: userId, // Use the extracted userId
-        doctorId: selectedDoctor.id,
+        userId: user.id,
+        doctorId: selectedDoctor.id.toString(),
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
-        doctorImage: selectedDoctor.image,
         appointmentDate: selectedDate.toISOString(),
         appointmentTime: selectedTime,
-        notes: ''
+        reason: 'General checkup' // You could add a reason field to the form
       };
       
-      console.log('Sending appointment data to API:', appointmentData);
+      // Save appointment to MongoDB
+      const savedAppointment = await appointmentApi.createAppointment(appointmentData);
       
-      // Call API to create appointment
-      const result = await appointmentApi.createAppointment(appointmentData);
-      console.log('Appointment created successfully:', result);
-      
-      // Manually fetch appointments again to ensure the list is updated
-      try {
-        console.log('Fetching updated appointments after booking');
-        const updatedAppointments = await appointmentApi.getUserAppointments(user.id);
-        console.log('Updated appointments:', updatedAppointments);
-        
-        if (updatedAppointments && updatedAppointments.length > 0) {
-          const formattedAppointments = updatedAppointments.map(appointment => ({
-            id: appointment._id,
-            doctorId: appointment.doctorId,
-            doctorName: appointment.doctorName,
-            doctorSpecialty: appointment.doctorSpecialty,
-            doctorImage: appointment.doctorImage,
-            date: appointment.appointmentDate,
-            time: appointment.appointmentTime,
-            status: appointment.status,
-            notes: appointment.notes
-          }));
-          
-          setMyAppointments(formattedAppointments);
-        }
-      } catch (fetchError) {
-        console.error('Error fetching updated appointments:', fetchError);
-      }
-      
-      // Reset states and show confirmation
-      setBookingConfirmed(true);
-      setBookingStep(1);
-      
-      // Show notification
-      addNotification('Appointment booked successfully!', 'success');
-      
-      // Force refresh the appointments list
-      try {
-        console.log('Forcing refresh of appointments list');
-        const refreshedAppointments = await appointmentApi.getUserAppointments(userId);
-        
-        if (refreshedAppointments && refreshedAppointments.length > 0) {
-          console.log('Successfully refreshed appointments:', refreshedAppointments);
-          const formattedAppointments = refreshedAppointments.map(appointment => ({
-            id: appointment._id,
-            doctorId: appointment.doctorId,
-            doctorName: appointment.doctorName,
-            doctorSpecialty: appointment.doctorSpecialty,
-            doctorImage: appointment.doctorImage,
-            date: appointment.appointmentDate,
-            time: appointment.appointmentTime,
-            status: appointment.status || 'scheduled',
-            notes: appointment.notes
-          }));
-          
-          setMyAppointments(formattedAppointments);
-        }
-      } catch (refreshError) {
-        console.error('Error refreshing appointments list:', refreshError);
-      }
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setBookingConfirmed(false);
-        setSelectedDoctor(null);
-        setSelectedTime(null);
-      }, 3000);
-    } catch (error) {
-      console.error('Failed to book appointment:', error);
-      addNotification('Failed to book appointment. Please try again.', 'error');
-    } finally {
       setIsLoading(false);
+      setBookingConfirmed(true);
+      
+      // Add the new appointment to the list
+      const newAppointment = {
+        id: savedAppointment._id,
+        doctorName: savedAppointment.doctorName,
+        doctorSpecialty: savedAppointment.doctorSpecialty,
+        date: savedAppointment.appointmentDate,
+        time: savedAppointment.appointmentTime,
+        status: savedAppointment.status,
+        doctorImage: selectedDoctor.image, // This isn't stored in MongoDB
+        doctorId: savedAppointment.doctorId,
+      };
+      
+      setMyAppointments(prev => [...prev, newAppointment]);
+      
+      // Create a notification
+      addNotification({
+        title: 'Appointment Booked',
+        message: `You have successfully booked an appointment with ${selectedDoctor.name} on ${formatDate(selectedDate)} at ${selectedTime}`,
+        type: 'appointment'
+      });
+      
+      // Reset selections
+      setSelectedDoctor(null);
+      setSelectedDate(new Date());
+      setSelectedTime(null);
+      setBookingStep(1);
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      setIsLoading(false);
+      
+      addNotification({
+        title: 'Booking Failed',
+        message: 'There was an error booking your appointment. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -422,44 +362,57 @@ const AppointmentPage = () => {
   
   // Submit reschedule
   const handleRescheduleSubmit = async () => {
-    if (!appointmentToReschedule || !rescheduleTime) return;
+    if (!rescheduleTime || !appointmentToReschedule) return;
     
     setIsRescheduling(true);
     
     try {
-      // Call API to reschedule appointment
-      await appointmentApi.rescheduleAppointment(
+      // Call API to update appointment
+      const updatedData = {
+        appointmentDate: rescheduleDate.toISOString(),
+        appointmentTime: rescheduleTime,
+        status: 'scheduled'
+      };
+      
+      const updatedAppointment = await appointmentApi.updateAppointment(
         appointmentToReschedule.id,
-        rescheduleDate.toISOString(),
-        rescheduleTime
+        updatedData
       );
       
-      // Update local state
+      // Update the appointment in the list
       setMyAppointments(prev => 
         prev.map(appointment => 
-          appointment.id === appointmentToReschedule.id 
-            ? { 
-                ...appointment, 
-                date: rescheduleDate.toISOString(),
-                time: rescheduleTime,
-                status: 'rescheduled'
-              } 
+          appointment.id === appointmentToReschedule.id
+            ? {
+                ...appointment,
+                date: updatedAppointment.appointmentDate,
+                time: updatedAppointment.appointmentTime,
+                status: updatedAppointment.status
+              }
             : appointment
         )
       );
       
-      // Show notification
-      addNotification('Appointment rescheduled successfully', 'success');
-      
-      // Reset states
+      setIsRescheduling(false);
       setIsRescheduleModalOpen(false);
       setAppointmentToReschedule(null);
+      setRescheduleDate(new Date());
       setRescheduleTime(null);
+      
+      addNotification({
+        title: 'Appointment Rescheduled',
+        message: `Your appointment has been rescheduled to ${formatDate(rescheduleDate)} at ${rescheduleTime}`,
+        type: 'appointment'
+      });
     } catch (error) {
-      console.error('Failed to reschedule appointment:', error);
-      addNotification('Failed to reschedule appointment. Please try again.', 'error');
-    } finally {
+      console.error('Error rescheduling appointment:', error);
       setIsRescheduling(false);
+      
+      addNotification({
+        title: 'Rescheduling Failed',
+        message: 'There was an error rescheduling your appointment. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -481,25 +434,34 @@ const AppointmentPage = () => {
     setIsLoading(true);
     
     try {
-      // Call API to update appointment status
-      await appointmentApi.updateAppointmentStatus(id, 'cancelled');
+      // Call API to cancel appointment
+      await appointmentApi.cancelAppointment(id);
       
       // Update local state
-      setMyAppointments(prev => 
-        prev.map(appointment => 
-          appointment.id === id 
-            ? { ...appointment, status: 'cancelled' } 
-            : appointment
-        )
-      );
+      setMyAppointments(prev => prev.map(appointment => 
+        appointment.id === id 
+          ? { ...appointment, status: 'cancelled' } 
+          : appointment
+      ));
       
-      addNotification('Appointment cancelled successfully', 'success');
-    } catch (error) {
-      console.error('Failed to cancel appointment:', error);
-      addNotification('Failed to cancel appointment. Please try again.', 'error');
-    } finally {
       setIsLoading(false);
+      
+      addNotification({
+        title: 'Appointment Cancelled',
+        message: 'Your appointment has been successfully cancelled',
+        type: 'info'
+      });
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      setIsLoading(false);
+      
+      addNotification({
+        title: 'Cancellation Failed',
+        message: 'There was an error cancelling your appointment. Please try again.',
+        type: 'error'
+      });
     }
+  }
   };
 
   // Add animation to calendar selection

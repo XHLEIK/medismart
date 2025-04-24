@@ -407,7 +407,7 @@ const MainLayout = () => {
 
         {/* Mobile sidebar */}
         <div 
-          className={`fixed inset-0 flex z-40 md:hidden transition-opacity ease-linear duration-300 ${
+          className={`fixed inset-0 flex z-50 md:hidden transition-opacity ease-linear duration-300 ${
             sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
         >
@@ -420,11 +420,11 @@ const MainLayout = () => {
           
           <div 
             ref={sidebarRef}
-            className={`relative flex-1 flex flex-col max-w-xs w-full bg-white transform transition ease-in-out duration-300 ${
+            className={`relative flex-1 flex flex-col max-w-xs w-[80%] bg-white transform transition-transform ease-in-out duration-300 shadow-xl ${
               sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
-            <div className="absolute top-0 right-0 -mr-12 pt-2">
+            <div className="absolute top-0 right-0 -mr-12 pt-4">
               <button
                 className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
                 onClick={() => setSidebarOpen(false)}
@@ -440,7 +440,7 @@ const MainLayout = () => {
                 <span className="ml-2 text-xl font-bold text-primary">MediSmart</span>
               </div>
               
-              <nav className="mt-5 px-4 space-y-1">
+              <nav className="mt-5 px-4 space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto">
                 <NavLink 
                   to="/" 
                   className={({ isActive }) => 
@@ -455,7 +455,114 @@ const MainLayout = () => {
                   <HomeIcon className="mr-3 flex-shrink-0 h-5 w-5" />
                   Dashboard
                 </NavLink>
-                {/* Rest of navigation links same as desktop */}
+                <NavLink 
+                  to="/appointments" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <CalendarIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Appointments
+                </NavLink>
+                <NavLink 
+                  to="/doctor" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <UserCircleIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Doctors
+                </NavLink>
+                <NavLink 
+                  to="/medication" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mr-3 flex-shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                  </svg>
+                  Medications
+                </NavLink>
+                <NavLink 
+                  to="/report" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <ClipboardDocumentListIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Reports
+                </NavLink>
+                <NavLink 
+                  to="/chat" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <ChatBubbleLeftRightIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Chat
+                </NavLink>
+                <NavLink 
+                  to="/videocall" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <VideoCameraIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Video Call
+                </NavLink>
+                <NavLink 
+                  to="/diet-plan" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mr-3 flex-shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Diet Plans
+                </NavLink>
+                <NavLink 
+                  to="/ambulance" 
+                  className={({ isActive }) => 
+                    `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`
+                  }
+                >
+                  <TruckIcon className="mr-3 flex-shrink-0 h-5 w-5" />
+                  Ambulance
+                </NavLink>
               </nav>
             </div>
             

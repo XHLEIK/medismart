@@ -38,6 +38,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+
 // App Component with Routes
 function App() {
   return (

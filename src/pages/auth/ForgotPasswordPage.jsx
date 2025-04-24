@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { forgotPassword } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,11 +21,13 @@ const ForgotPasswordPage = () => {
     setError('');
     
     try {
-      // This would typically make an API call to your backend
-      // For now, we'll simulate a successful request
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const result = await forgotPassword(email);
       
-      setIsSubmitted(true);
+      if (result.success) {
+        setIsSubmitted(true);
+      } else {
+        setError(result.error || 'Failed to send reset link. Please try again.');
+      }
     } catch (err) {
       setError('An error occurred. Please try again later.');
     } finally {

@@ -50,7 +50,12 @@ const RegisterPage = () => {
     try {
       const result = await register(formData);
       if (result.success) {
-        navigate('/');
+        // Show success message and redirect to login
+        navigate('/login', { 
+          state: { 
+            message: 'Registration successful! Please check your email to confirm your account before logging in.' 
+          } 
+        });
       } else {
         setError(result.error || 'Failed to register');
       }
@@ -68,7 +73,7 @@ const RegisterPage = () => {
     try {
       const result = await loginWithGoogle();
       if (result.success) {
-        navigate('/');
+        navigate('/dashboard');
       } else {
         setError(result.error || 'Failed to login with Google');
       }
@@ -86,7 +91,7 @@ const RegisterPage = () => {
     try {
       const result = await loginWithFacebook();
       if (result.success) {
-        navigate('/');
+        navigate('/dashboard');
       } else {
         setError(result.error || 'Failed to login with Facebook');
       }

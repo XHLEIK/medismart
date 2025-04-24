@@ -6,6 +6,7 @@ import { CalendarIcon, ClockIcon, UserIcon, ArrowRightIcon, BellIcon, HeartIcon,
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../layouts/MainLayout';
+import appointmentApi from '../../api/appointmentApi';
 
 // Register ChartJS components
 ChartJS.register(
@@ -51,48 +52,104 @@ const DashboardPage = () => {
   
   const navigate = useNavigate();
   
-  useEffect(() => {
-    // Fetch mock data - in a real app this would be API calls
-    // Upcoming appointments
-    setUpcomingAppointments([
-      {
-        id: 1,
-        doctorName: 'Dr. Sarah Johnson',
-        specialty: 'Cardiologist',
-        date: 'May 15, 2024',
-        time: '10:30 AM',
-        status: 'confirmed',
-        image: 'https://randomuser.me/api/portraits/women/76.jpg'
-      },
-      {
-        id: 2,
-        doctorName: 'Dr. Michael Chen',
-        specialty: 'Dermatologist',
-        date: 'May 20, 2024',
-        time: '2:00 PM',
-        status: 'pending',
-        image: 'https://randomuser.me/api/portraits/men/34.jpg'
-      },
-      {
-        id: 3,
-        doctorName: 'Dr. Emily Wilson',
-        specialty: 'Neurologist',
-        date: 'May 22, 2024',
-        time: '9:15 AM',
-        status: 'confirmed',
-        image: 'https://randomuser.me/api/portraits/women/45.jpg'
-      },
-      {
-        id: 4,
-        doctorName: 'Dr. James Rodriguez',
-        specialty: 'Orthopedic Surgeon',
-        date: 'May 25, 2024',
-        time: '11:00 AM',
-        status: 'confirmed',
-        image: 'https://randomuser.me/api/portraits/men/55.jpg'
-      },
-    ]);
+  // Fetch real appointments from MongoDB
+  const fetchRealAppointments = async () => {
+    if (!user || !user.id) return;
     
+    try {
+      console.log('Fetching real appointments for dashboard');
+      const appointments = await appointmentApi.getUserAppointments(user.id);
+      console.log('Fetched appointments:', appointments);
+      
+      if (appointments && appointments.length > 0) {
+        // Transform the appointments data to match the expected format
+        const formattedAppointments = appointments.map(appointment => {
+          // Default status to 'scheduled' if not provided
+          let status = appointment.status || 'scheduled';
+          
+          // Normalize status values for consistency
+          if (status === 'scheduled' || status === 'confirmed' || status === 'pending') {
+            // These are considered active appointments
+            status = 'confirmed'; // Normalize to 'confirmed' for the dashboard
+          }
+          
+          return {
+            id: appointment._id,
+            doctorName: appointment.doctorName,
+            specialty: appointment.doctorSpecialty,
+            date: new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            time: appointment.appointmentTime,
+            status: status,
+            image: appointment.doctorImage || 'https://randomuser.me/api/portraits/men/55.jpg'
+          };
+        });
+        
+        console.log('Formatted appointments with normalized statuses:', 
+          formattedAppointments.map(app => ({ id: app.id, status: app.status })));
+        
+        // Sort appointments by date (closest first)
+        const sortedAppointments = formattedAppointments.sort((a, b) => {
+          return new Date(a.date) - new Date(b.date);
+        });
+        
+        setUpcomingAppointments(sortedAppointments);
+      } else {
+        // If no appointments found, set empty array
+        setUpcomingAppointments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching appointments for dashboard:', error);
+      // Fallback to empty array if there's an error
+      setUpcomingAppointments([]);
+    }
+  };
+  
+  // Add a refresh interval to keep appointments up to date
+  useEffect(() => {
+    // Fetch real appointments if user is logged in
+    if (user && user.id) {
+      console.log('User is logged in, fetching real appointments');
+      fetchRealAppointments();
+      
+      // Set up a refresh interval to keep appointments updated
+      const refreshInterval = setInterval(() => {
+        console.log('Refreshing appointments data');
+        fetchRealAppointments();
+      }, 30000); // Refresh every 30 seconds
+      
+      // Clean up the interval when the component unmounts
+      return () => clearInterval(refreshInterval);
+    } else {
+      // Fallback to mock data if user is not logged in
+      console.log('User not logged in, using mock data');
+      setUpcomingAppointments([
+        {
+          id: 1,
+          doctorName: 'Dr. Sarah Johnson',
+          specialty: 'Cardiologist',
+          date: 'May 15, 2024',
+          time: '10:30 AM',
+          status: 'confirmed',
+          image: 'https://randomuser.me/api/portraits/women/76.jpg'
+        },
+        {
+          id: 2,
+          doctorName: 'Dr. Michael Chen',
+          specialty: 'Dermatologist',
+          date: 'May 20, 2024',
+          time: '2:00 PM',
+          status: 'pending',
+          image: 'https://randomuser.me/api/portraits/men/34.jpg'
+        },
+      ]);
+    }
+  }, [user]);
+  
+  useEffect(() => {
     // Medications data
     setMedications([
       { id: 1, name: 'Amoxicillin', dosage: '500mg', frequency: '3 times daily', timeLeft: 4 },
@@ -152,14 +209,17 @@ const DashboardPage = () => {
     
     // Calculate real stats based on the data
     updateStats();
-  }, [navigate]);
+  }, [navigate, user]);
   
   // Update stats based on actual data
   const updateStats = () => {
-    // Count confirmed/pending appointments
+    // Count all non-cancelled appointments
     const appointmentCount = upcomingAppointments.filter(
-      app => app.status === 'confirmed' || app.status === 'pending'
+      app => app.status !== 'cancelled'
     ).length;
+    
+    console.log('Updating appointment count:', appointmentCount, 'from', upcomingAppointments.length, 'total appointments');
+    console.log('Appointment statuses:', upcomingAppointments.map(app => app.status));
     
     // Count active medications
     const medicationCount = medications.length;
@@ -540,7 +600,16 @@ const DashboardPage = () => {
       <div className="bg-gradient-to-r from-primary to-[#06b6d4] rounded-2xl p-6 shadow-xl text-white mb-8 transform hover:scale-[1.01] transition-transform">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-shadow">Welcome back, {user?.name || 'Guest'}</h1>
+            <h1 className="text-3xl font-bold text-shadow">
+              Welcome back, {
+                // Try to get the first name from user metadata
+                user?.user_metadata?.full_name ? 
+                  user.user_metadata.full_name.split(' ')[0] : // Get first name from full name
+                  user?.user_metadata?.name || // Fallback to name if available
+                  user?.email?.split('@')[0] || // Fallback to email username
+                  'Guest' // Final fallback
+              }
+            </h1>
             <p className="mt-2 text-blue-50">Your health dashboard overview</p>
           </div>
           <div className="mt-4 md:mt-0 animate-pulse">

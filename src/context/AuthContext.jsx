@@ -1,5 +1,17 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  supabase, 
+  signIn, 
+  signUp, 
+  signInWithGoogle, 
+  signInWithFacebook, 
+  signOut, 
+  resetPassword,
+  getCurrentUser,
+  getSession,
+  onAuthStateChange
+} from '../utils/supabase';
 
 // Helper function to safely check if we're in a browser environment
 const isBrowser = () => typeof window !== 'undefined';
@@ -11,44 +23,85 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isBrowser()) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Check if user is already logged in (e.g., from localStorage)
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const initializeAuth = async () => {
+      setIsLoading(true);
+      try {
+        // Get the current session
+        const { data: sessionData } = await getSession();
+        setSession(sessionData.session);
+        
+        if (sessionData.session) {
+          const { data: userData } = await getCurrentUser();
+          const userWithRole = {
+            ...userData.user,
+            role: userData.user.user_metadata?.role || 'patient',
+          };
+          setUser(userWithRole);
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error accessing localStorage:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    initializeAuth();
+
+    // Set up auth state change listener
+    const { data: authListener } = onAuthStateChange(async (event, session) => {
+      setSession(session);
+      
+      if (event === 'SIGNED_IN' && session) {
+        const { data } = await getCurrentUser();
+        const userWithRole = {
+          ...data.user,
+          role: data.user.user_metadata?.role || 'patient',
+        };
+        setUser(userWithRole);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
   }, []);
 
-  const login = async (credentials) => {
+  const login = async (email, password) => {
     try {
-      // This would typically be an API call to your backend
-      // Mock implementation for now
-      const mockUser = {
-        id: '123',
-        name: 'Test User',
-        email: credentials.email,
-        role: 'patient',
-      };
+      console.log('Attempting to login with email:', email);
+      const { data, error } = await signIn({ email, password });
       
-      setUser(mockUser);
-      if (isBrowser()) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
+      if (error) throw error;
+      
+      // Immediately update the session and user state
+      if (data.session) {
+        setSession(data.session);
+        
+        // Set the user data
+        const userWithRole = {
+          ...data.user,
+          role: data.user.user_metadata?.role || 'patient',
+        };
+        setUser(userWithRole);
+        
+        console.log('Login successful, user state updated:', userWithRole.id);
+      } else {
+        console.warn('Login successful but no session returned');
       }
-      return { success: true };
+      
+      return { success: true, user: data.user };
     } catch (error) {
+      console.error('Login error:', error.message);
       return { 
         success: false, 
         error: error.message || 'Failed to login' 
@@ -56,27 +109,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogleAuth = async () => {
     try {
-      // In a real implementation, we would use the Google OAuth flow here
-      // For now, we'll simulate a more realistic flow with validation
+      const { data, error } = await signInWithGoogle();
       
-      // Simulate a loading delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) throw error;
       
-      // Mock user data that would come from Google OAuth
-      const mockUser = {
-        id: '123g',
-        name: 'Google User',
-        email: 'google@example.com',
-        role: 'patient',
-        profilePic: 'https://randomuser.me/api/portraits/men/32.jpg'
-      };
-      
-      setUser(mockUser);
-      if (isBrowser()) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
       return { success: true };
     } catch (error) {
       return { 
@@ -86,27 +124,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithFacebook = async () => {
+  const loginWithFacebookAuth = async () => {
     try {
-      // In a real implementation, we would use the Facebook SDK here
-      // For now, we'll simulate a more realistic flow with validation
+      const { data, error } = await signInWithFacebook();
       
-      // Simulate a loading delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) throw error;
       
-      // Mock user data that would come from Facebook login
-      const mockUser = {
-        id: '123f',
-        name: 'Facebook User',
-        email: 'facebook@example.com',
-        role: 'patient',
-        profilePic: 'https://randomuser.me/api/portraits/women/44.jpg'
-      };
-      
-      setUser(mockUser);
-      if (isBrowser()) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
       return { success: true };
     } catch (error) {
       return { 
@@ -116,29 +139,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    if (isBrowser()) {
-      localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      const { error } = await signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      setSession(null);
+      navigate('/login');
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Failed to logout'
+      };
     }
-    navigate('/login');
   };
 
   const register = async (userData) => {
     try {
-      // Mock implementation - would make API call in production
-      const mockUser = {
-        id: '124',
-        name: userData.name,
+      const { data, error } = await signUp({
         email: userData.email,
-        role: 'patient',
-      };
+        password: userData.password,
+        name: userData.name,
+        role: 'patient', // Default role for new users
+      });
       
-      setUser(mockUser);
-      if (isBrowser()) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
-      return { success: true };
+      if (error) throw error;
+      
+      return { success: true, user: data.user };
     } catch (error) {
       return { 
         success: false, 
@@ -147,15 +176,32 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const forgotPassword = async (email) => {
+    try {
+      const { error } = await resetPassword(email);
+      
+      if (error) throw error;
+      
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Failed to send password reset email'
+      };
+    }
+  };
+
   const value = {
     user,
+    session,
     isLoading,
     login,
-    loginWithGoogle,
-    loginWithFacebook,
+    loginWithGoogle: loginWithGoogleAuth,
+    loginWithFacebook: loginWithFacebookAuth,
     logout,
     register,
+    forgotPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}; 
+};
